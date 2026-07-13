@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Med Tabs Generator</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <span class="app-brand">Med Tabs Generator</span>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
+          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
+          <span id="themeLabel">Light mode</span>
+        </button>
+      </header>
+
+      <section class="panel input-panel" aria-labelledby="generator-title">
+        <div class="panel-heading">
+          <h1 id="generator-title">Med Tabs Generator</h1>
+          </p>
+        </div>
+
+        <label class="sr-only" for="inputText">Raw intake text</label>
+        <textarea id="inputText" placeholder="Paste intake text here..."></textarea>
+
+        <div class="input-actions">
+          <button id="generateBtn" class="primary-btn" type="button">Generate Med Tabs</button>
+        </div>
+
+        <div id="statusMessage" class="status-message" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="panel output-panel" aria-labelledby="results-title">
+        <div class="output-header">
+          <div class="output-title">
+            <h2 id="results-title">Medical Provider Tabs</h2>
+          </div>
+          <div class="output-header-actions">
+            <div id="validationCounters" class="validation-counters" aria-label="Provider validation summary" aria-live="polite">
+              <span id="resultCount" class="counter-pill counter-pill-providers" data-counter-status="all">0 Providers</span>
+              <span id="greenCount" class="counter-pill counter-pill-complete" data-counter-status="complete" hidden></span>
+              <span id="yellowCount" class="counter-pill counter-pill-warning" data-counter-status="warning" hidden></span>
+              <span id="redCount" class="counter-pill counter-pill-critical" data-counter-status="critical" hidden></span>
+            </div>
+            <button id="copyBlankTemplateBtn" class="blank-template-btn" type="button">Copy Blank Template</button>
+            <button id="clearAllBtn" class="clear-btn" type="button" disabled>Clear All</button>
+          </div>
+        </div>
+
+        <div id="resultsContainer" class="results-stack">
+          <div class="empty-state">
+            <h3>Ready to generate</h3>
+            <p>Paste intake text from one or more providers and generate polished output cards on the right.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  </body>
+</html>
