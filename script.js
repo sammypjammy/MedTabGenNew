@@ -717,10 +717,27 @@ const formatter = {
   }
 };
 
+const copiedProviderState = {
+  providerIds: new Set(),
+
+  has(providerId) {
+    return this.providerIds.has(String(providerId));
+  },
+
+  mark(providerId) {
+    this.providerIds.add(String(providerId));
+  },
+
+  reset() {
+    this.providerIds.clear();
+  }
+};
+
 const expandableProviderRow = {
   render(provider) {
     const formattedText = formatter.formatProviderTab(provider);
     const validation = providerValidator.validate(provider);
+    const isCopied = copiedProviderState.has(provider.id);
     const statusLabels = {
       complete: 'Complete',
       warning: 'Yellow',
@@ -731,14 +748,15 @@ const expandableProviderRow = {
     const titleId = `${rowId}-title`;
 
     return `
-      <article class="provider-card provider-row status-${validation.level}" data-id="${provider.id}">
+      <article class="provider-card provider-row status-${validation.level}${isCopied ? ' is-copied' : ''}" data-id="${provider.id}" data-copied="${isCopied}">
         <div class="provider-summary">
           <button class="provider-toggle" type="button" aria-expanded="false" aria-controls="${detailsId}" data-action="toggle-provider">
             <span class="provider-chevron" aria-hidden="true">&#8250;</span>
+            <span class="provider-copied-indicator" role="img" aria-label="Provider copied" title="Copied">&#10003;</span>
             <span id="${titleId}" class="provider-name" title="${escapeHtml(provider.title)}">${escapeHtml(provider.title)}</span>
             <span class="status-badge status-badge-${validation.level}">${statusLabels[validation.level]}</span>
           </button>
-          <button class="ghost-btn row-copy-btn" type="button" data-action="copy" aria-label="Copy Med Tab for ${escapeHtml(provider.title)}">Copy</button>
+          <button class="ghost-btn row-copy-btn" type="button" data-action="copy" aria-label="${isCopied ? 'Copy Med Tab again' : 'Copy Med Tab'} for ${escapeHtml(provider.title)}">${isCopied ? 'Copied' : 'Copy'}</button>
         </div>
         <div id="${detailsId}" class="provider-details" role="region" aria-labelledby="${titleId}" hidden>
           ${validation.summary ? `<p class="missing-summary">${escapeHtml(validation.summary)}</p>` : ''}
@@ -798,6 +816,7 @@ const uiActions = {
   },
 
   clearAll() {
+    copiedProviderState.reset();
     ui.inputText.value = '';
     uiActions.renderResults([], 'ready');
     uiActions.setStatus('Paste a provider intake block to begin.', '');
@@ -816,6 +835,7 @@ const uiActions = {
 
     uiActions.setStatus('Analyzing intake text...', '');
     uiActions.setLoading(true);
+    copiedProviderState.reset();
 
     window.setTimeout(() => {
       try {
@@ -903,10 +923,16 @@ ui.resultsContainer.addEventListener('click', async (event) => {
 
     try {
       await navigator.clipboard.writeText(textToCopy);
+      copiedProviderState.mark(card.dataset.id);
+      card.classList.add('is-copied');
+      card.dataset.copied = 'true';
       button.textContent = 'Copied';
+      const providerName = card.querySelector('.provider-name')?.textContent || 'provider';
+      button.setAttribute('aria-label', `Copied Med Tab for ${providerName}`);
       toastNotifications.show('Copied to clipboard');
       window.setTimeout(() => {
         button.textContent = 'Copy';
+        button.setAttribute('aria-label', `Copy Med Tab again for ${providerName}`);
       }, 1400);
     } catch (error) {
       uiActions.setStatus('Copy failed. Please copy manually.', 'error');
