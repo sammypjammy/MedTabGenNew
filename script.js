@@ -122,13 +122,12 @@ const providerValidator = {
     const missing = [...criticalMissing, ...otherMissing];
     const state = String(fields.state || '').trim().toUpperCase();
     const outOfState = /^[A-Z]{2}$/.test(state) && state !== 'TX';
-    const level = outOfState
-      ? 'out-of-state'
-      : criticalMissing.length
-        ? 'critical'
-        : otherMissing.length
-          ? 'warning'
-          : 'complete';
+    const validationLevel = criticalMissing.length
+      ? 'critical'
+      : otherMissing.length
+        ? 'warning'
+        : 'complete';
+    const level = outOfState && validationLevel === 'complete' ? 'out-of-state' : validationLevel;
     const labels = {
       critical: 'Critical information missing',
       warning: 'Information missing',
@@ -277,6 +276,9 @@ const expandableProviderRow = {
       'out-of-state': 'Out of State'
     };
     const displayTitle = validation.outOfState ? `${provider.title} - OUT OF STATE` : provider.title;
+    const secondaryOutOfStateBadge = validation.outOfState && validation.level !== 'out-of-state'
+      ? '<span class="status-badge status-badge-out-of-state">Out of State</span>'
+      : '';
     const rowId = `provider-${provider.id}`;
     const detailsId = `${rowId}-details`;
     const titleId = `${rowId}-title`;
@@ -289,6 +291,7 @@ const expandableProviderRow = {
             <span class="provider-copied-indicator" role="img" aria-label="Provider copied" title="Copied">&#10003;</span>
             <span id="${titleId}" class="provider-name" title="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</span>
             <span class="status-badge status-badge-${validation.level}">${statusLabels[validation.level]}</span>
+            ${secondaryOutOfStateBadge}
           </button>
           <button class="ghost-btn row-copy-btn" type="button" data-action="copy" aria-label="${isCopied ? 'Copy Med Tab again' : 'Copy Med Tab'} for ${escapeHtml(displayTitle)}">${isCopied ? 'Copied' : 'Copy'}</button>
         </div>

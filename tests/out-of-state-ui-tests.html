@@ -70,14 +70,29 @@ Clinic Name: No Visit Dates Clinic
 Phone: 2105550105
 Address: 6 Main St
 City: Austin
-Zip: 78701`;
+Zip: 78701
+
+Clinic 7
+Clinic Name: California Yellow Clinic
+Phone: 3105550106
+City: Beverly Hills
+Zip: 90210
+First Visit: 2022
+
+Clinic 8
+Clinic Name: California Red Clinic
+Phone: invalid
+Address: 8 Main St
+City: Beverly Hills
+Zip: 90210
+First Visit: 2022`;
         generateBtn.click();
 
         window.setTimeout(() => {
           const cards = [...document.querySelectorAll('.provider-card')];
           const failures = [];
           const expect = (condition, message) => { if (!condition) failures.push(message); };
-          expect(cards.length === 6, 'six cards');
+          expect(cards.length === 8, 'eight cards');
           expect(cards[0]?.classList.contains('status-out-of-state'), 'California card is purple status');
           expect(cards[0]?.querySelector('.provider-name')?.textContent.endsWith(' - OUT OF STATE'), 'California title suffix');
           expect(!cards[0]?.querySelector('.medtab-output')?.textContent.includes('OUT OF STATE'), 'suffix excluded from Med Tab');
@@ -87,6 +102,16 @@ Zip: 78701`;
           expect(cards[3]?.querySelector('.medtab-output')?.textContent.includes('FV: 2023\nLV: 2023'), 'LV copied to FV');
           expect(cards[4]?.classList.contains('status-complete'), 'FV-only card is complete');
           expect(cards[5]?.classList.contains('status-warning'), 'both dates missing is yellow');
+          expect(cards[6]?.classList.contains('status-warning'), 'out-of-state errors remain yellow');
+          expect(cards[6]?.querySelector('.provider-name')?.textContent.endsWith(' - OUT OF STATE'), 'yellow title suffix');
+          expect(cards[6]?.querySelector('.status-badge-warning'), 'yellow main pill retained');
+          expect(cards[6]?.querySelector('.status-badge-out-of-state'), 'yellow card has purple pill');
+          expect(cards[7]?.classList.contains('status-critical'), 'out-of-state errors remain red');
+          expect(cards[7]?.querySelector('.provider-name')?.textContent.endsWith(' - OUT OF STATE'), 'red title suffix');
+          expect(cards[7]?.querySelector('.status-badge-critical'), 'red main pill retained');
+          expect(cards[7]?.querySelector('.status-badge-out-of-state'), 'red card has purple pill');
+          expect(yellowCount.dataset.count === '3', 'yellow counter includes out-of-state warning');
+          expect(redCount.dataset.count === '1', 'red counter includes out-of-state critical');
           testSummary.textContent = failures.length ? `FAIL: ${failures.join(', ')}` : 'PASS: out-of-state UI';
           testSummary.className = failures.length ? 'fail' : 'pass';
         }, 800);

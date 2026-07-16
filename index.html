@@ -14,11 +14,14 @@
     <div class="app-shell">
       <header class="app-header">
         <span class="app-brand">Med Tabs Generator</span>
-        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+        <div class="app-header-actions">
+          <button id="copyBlankTemplateBtn" class="blank-template-btn" type="button">Copy Blank Template</button>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
           <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
           <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
           <span id="themeLabel">Light mode</span>
-        </button>
+          </button>
+        </div>
       </header>
 
       <section class="panel input-panel" aria-labelledby="generator-title">
@@ -49,7 +52,6 @@
               <span id="yellowCount" class="counter-pill counter-pill-warning" data-counter-status="warning" hidden></span>
               <span id="redCount" class="counter-pill counter-pill-critical" data-counter-status="critical" hidden></span>
             </div>
-            <button id="copyBlankTemplateBtn" class="blank-template-btn" type="button">Copy Blank Template</button>
             <button id="clearAllBtn" class="clear-btn" type="button" disabled>Clear All</button>
           </div>
         </div>
