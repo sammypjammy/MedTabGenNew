@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Out-of-State UI Tests</title>
+    <script src="../med-tab-parser.js"></script>
+    <script src="../script.js" defer></script>
+  </head>
+  <body>
+    <button id="themeToggle" type="button"><span id="themeLabel"></span></button>
+    <textarea id="inputText"></textarea>
+    <button id="generateBtn" type="button">Generate</button>
+    <div id="statusMessage"></div>
+    <div class="output-panel"><div id="resultsContainer"></div></div>
+    <span id="resultCount"></span>
+    <span id="greenCount"></span>
+    <span id="yellowCount"></span>
+    <span id="redCount"></span>
+    <button id="copyBlankTemplateBtn" type="button"></button>
+    <button id="clearAllBtn" type="button"></button>
+    <div id="toastContainer"></div>
+    <div id="testSummary">RUNNING</div>
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        inputText.value = `Clinic 1
+Clinic Name: California Clinic
+Phone: 3105550100
+Address: 1 Main St
+City: Beverly Hills
+Zip: 90210
+First Visit: 01/2024
+Last Visit: 02/2025
+
+Clinic 2
+Clinic Name: Texas Clinic
+Phone: 2105550101
+Address: 2 Main St
+City: San Antonio
+Zip: 78212
+First Visit: 01/2024
+Last Visit: 02/2025
+
+Clinic 3
+Clinic Name: Unknown State Clinic
+Phone: 2105550102
+Address: 3 Main St
+City: Somewhere
+Zip: 00000
+First Visit: 01/2024
+Last Visit: 02/2025
+
+Clinic 4
+Clinic Name: LV Only Clinic
+Phone: 2105550103
+Address: 4 Main St
+City: Austin
+Zip: 78701
+Last Visit: 2023
+
+Clinic 5
+Clinic Name: FV Only Clinic
+Phone: 2105550104
+Address: 5 Main St
+City: Austin
+Zip: 78701
+First Visit: 2022
+
+Clinic 6
+Clinic Name: No Visit Dates Clinic
+Phone: 2105550105
+Address: 6 Main St
+City: Austin
+Zip: 78701`;
+        generateBtn.click();
+
+        window.setTimeout(() => {
+          const cards = [...document.querySelectorAll('.provider-card')];
+          const failures = [];
+          const expect = (condition, message) => { if (!condition) failures.push(message); };
+          expect(cards.length === 6, 'six cards');
+          expect(cards[0]?.classList.contains('status-out-of-state'), 'California card is purple status');
+          expect(cards[0]?.querySelector('.provider-name')?.textContent.endsWith(' - OUT OF STATE'), 'California title suffix');
+          expect(!cards[0]?.querySelector('.medtab-output')?.textContent.includes('OUT OF STATE'), 'suffix excluded from Med Tab');
+          expect(cards[1]?.classList.contains('status-complete'), 'Texas card remains complete');
+          expect(cards[2]?.classList.contains('status-warning'), 'unknown ZIP remains yellow');
+          expect(cards[3]?.classList.contains('status-complete'), 'LV-only card is complete');
+          expect(cards[3]?.querySelector('.medtab-output')?.textContent.includes('FV: 2023\nLV: 2023'), 'LV copied to FV');
+          expect(cards[4]?.classList.contains('status-complete'), 'FV-only card is complete');
+          expect(cards[5]?.classList.contains('status-warning'), 'both dates missing is yellow');
+          testSummary.textContent = failures.length ? `FAIL: ${failures.join(', ')}` : 'PASS: out-of-state UI';
+          testSummary.className = failures.length ? 'fail' : 'pass';
+        }, 800);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Med Tab Parser Tests</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 2rem; }
+      .pass { color: #08783e; }
+      .fail { color: #b42318; }
+    </style>
+    <script src="../med-tab-parser.js"></script>
+    <script src="fixtures/real-intake-samples.js"></script>
+    <script src="parser.test.js"></script>
+  </head>
+  <body>
+    <h1>Med Tab Parser Tests</h1>
+    <div id="summary"></div>
+    <ol id="results"></ol>
+    <script>
+      const failures = parserTestResults.filter((result) => !result.passed);
+      summary.textContent = `${parserTestResults.length - failures.length}/${parserTestResults.length} tests passed`;
+      summary.className = failures.length ? 'fail' : 'pass';
+      parserTestResults.forEach((result) => {
+        const item = document.createElement('li');
+        item.className = result.passed ? 'pass' : 'fail';
+        item.textContent = `${result.passed ? 'PASS' : 'FAIL'}: ${result.name}${result.error ? ` — ${result.error}` : ''}`;
+        results.appendChild(item);
+      });
+    </script>
+  </body>
+</html>

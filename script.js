@@ -94,452 +94,6 @@ const toastNotifications = {
   }
 };
 
-const parser = {
-  parseIntakeText(rawText) {
-    const normalized = rawText.replace(/\r\n?/g, '\n').trim();
-
-    if (!normalized) {
-      return [];
-    }
-
-    const lines = normalized.split('\n').map((line) => line.trim());
-
-    if (!lines.length) {
-      return [];
-    }
-
-    const blocks = [];
-    let currentBlock = [];
-    let labelsInBlock = new Set();
-    let separatedByBlankLine = false;
-
-    const pushBlock = () => {
-      if (currentBlock.length) {
-        blocks.push(currentBlock);
-      }
-      currentBlock = [];
-      labelsInBlock = new Set();
-    };
-
-    lines.forEach((line) => {
-      if (!line) {
-        separatedByBlankLine = currentBlock.length > 0;
-        return;
-      }
-
-      if (parser.isProviderHeading(line)) {
-        const hasClinicData = currentBlock.some((blockLine) => parser.getLineLabel(blockLine) === 'clinic name');
-        if (hasClinicData) {
-          pushBlock();
-        } else {
-          currentBlock = [];
-          labelsInBlock = new Set();
-        }
-        separatedByBlankLine = false;
-        return;
-      }
-
-      const isContactHeading = /^\**\s*name\s*\/\s*address\s*\/\s*phone\s*\/\s*fax\s*:?\s*\**$/i.test(line);
-      const blockHasContactHeading = currentBlock.some((blockLine) =>
-        /^\**\s*name\s*\/\s*address\s*\/\s*phone\s*\/\s*fax\s*:?\s*\**$/i.test(blockLine)
-      );
-      if (isContactHeading && blockHasContactHeading) {
-        pushBlock();
-      }
-
-      const label = parser.getLineLabel(line);
-      const clinicLabels = ['clinic name', 'clinic', 'practice name', 'practice', 'facility name', 'facility'];
-      const repeatsClinicName =
-        clinicLabels.includes(label) && clinicLabels.some((clinicLabel) => labelsInBlock.has(clinicLabel));
-      const startsSeparatedProvider =
-        separatedByBlankLine &&
-        (label === 'provider name' || label === 'provider') &&
-        (labelsInBlock.has('provider name') || labelsInBlock.has('provider'));
-
-      if (repeatsClinicName || startsSeparatedProvider) {
-        pushBlock();
-      }
-
-      currentBlock.push(line);
-      if (label) {
-        labelsInBlock.add(label);
-      }
-      separatedByBlankLine = false;
-    });
-
-    pushBlock();
-
-    return blocks.map((block, index) => {
-      const { fields, notes } = parser.extractPdfFields(block);
-      const title = fields.name || fields.doctor || notes[0] || `Provider ${index + 1}`;
-      const specialty = fields.specialty || 'Medical Provider';
-
-      return {
-        id: index + 1,
-        title,
-        specialty,
-        rawText: block.join('\n'),
-        notes,
-        fields
-      };
-    });
-  },
-
-  isProviderHeading(line) {
-    const cleaned = parser.cleanLine(line);
-    return /^(?:provider|clinic|practice)\s*(?:#\s*)?\d+\s*[:\-\u2013\u2014]?$|^provider\s*[:\-\u2013\u2014]?$/i.test(cleaned);
-  },
-
-  cleanLine(line) {
-    return String(line || '')
-      .replace(/\*\*/g, '')
-      .replace(/\\_/g, '_')
-      .replace(/^[\s\-*\u2022\u25aa\u25e6]+/, '')
-      .trim();
-  },
-
-  getLineLabel(line) {
-    const cleaned = parser.cleanLine(line);
-    const match = cleaned.match(/^(clinic name|clinic|provider name|provider|practice name|practice|facility name|facility|doctor name|doctors?|physician name|physician|street address|address|location|phone number|phone|telephone|tel|fax number|fax|specialty|name)\b/i);
-    return match ? match[1].toLowerCase() : null;
-  },
-
-  normalizeLabel(label) {
-    const normalized = label.trim().toLowerCase();
-    const aliases = {
-      'clinic name': 'name',
-      'clinic': 'name',
-      'provider name': 'name',
-      'practice name': 'name',
-      'practice': 'name',
-      'facility name': 'name',
-      'facility': 'name',
-      'name': 'name',
-      'address': 'address',
-      'street address': 'address',
-      'phone number': 'phone',
-      'phone': 'phone',
-      'telephone': 'phone',
-      'tel': 'phone',
-      'fax': 'fax',
-      'fax number': 'fax',
-      'specialty': 'specialty',
-      'fv': 'fv',
-      'first visit': 'fv',
-      'lv': 'lv',
-      'last visit': 'lv',
-      'nv': 'nv',
-      'next visit': 'nv',
-      'doctor': 'doctor',
-      'doctor name': 'doctor',
-      'doctors': 'doctor',
-      'physician': 'doctor',
-      'physician name': 'doctor',
-      'location': 'address',
-      'provider': 'name',
-      'provider details': 'name'
-    };
-
-    return aliases[normalized] || null;
-  },
-
-  extractPdfFields(lines) {
-    const fields = {};
-    const notes = [];
-    const parts = {
-      name: [],
-      doctorFirst: [],
-      doctorLast: [],
-      phone: [],
-      address: [],
-      city: '',
-      state: '',
-      zipcode: ''
-    };
-    let activeField = null;
-
-    const isProvided = (value) => {
-      const normalized = String(value || '').trim();
-      return normalized && !/^(?:not provided|n\/?a|none|\.)$/i.test(normalized);
-    };
-
-    const addPart = (key, value, separator = ' ') => {
-      const cleanedValue = String(value || '').trim();
-      if (!isProvided(cleanedValue)) {
-        return;
-      }
-      if (separator === '') {
-        const previous = parts[key].pop() || '';
-        parts[key].push(`${previous}${cleanedValue}`);
-      } else {
-        parts[key].push(cleanedValue);
-      }
-    };
-
-    lines.map(parser.cleanLine).filter(Boolean).forEach((line) => {
-      if (/^(?:medical providers|clinic\s*\d+|\d+\/\d+\/\d+.*intake form|https?:\/\/)/i.test(line)) {
-        activeField = null;
-        return;
-      }
-
-      let match = line.match(/^clinic name\s*:\s*(.*)$/i);
-      if (match) {
-        addPart('name', match[1]);
-        activeField = 'name';
-        return;
-      }
-
-      match = line.match(/^doctor first name\s*:\s*(.*)$/i);
-      if (match) {
-        addPart('doctorFirst', match[1]);
-        activeField = 'doctorFirst';
-        return;
-      }
-
-      match = line.match(/^doctor last name\s*:\s*(.*?)\s+phone number\s*:\s*(.*)$/i);
-      if (match) {
-        addPart('doctorLast', match[1]);
-        addPart('phone', match[2]);
-        activeField = 'phone';
-        return;
-      }
-
-      match = line.match(/^doctor last name\s*:\s*(.*)$/i);
-      if (match) {
-        addPart('doctorLast', match[1]);
-        activeField = 'doctorLast';
-        return;
-      }
-
-      match = line.match(/^phone number\s*:\s*(.*)$/i);
-      if (match) {
-        addPart('phone', match[1]);
-        activeField = 'phone';
-        return;
-      }
-
-      if (/^address 2\s*:/i.test(line)) {
-        activeField = null;
-        return;
-      }
-
-      match = line.match(/^address\s*:\s*(.*)$/i);
-      if (match) {
-        addPart('address', match[1]);
-        activeField = 'address';
-        return;
-      }
-
-      match = line.match(/^city\s*:\s*(.*?)\s+state\s*:\s*(.*)$/i);
-      if (match) {
-        parts.city = isProvided(match[1]) ? match[1].trim() : '';
-        parts.state = isProvided(match[2]) ? match[2].trim() : '';
-        activeField = null;
-        return;
-      }
-
-      match = line.match(/^zipcode\s*:\s*(.*)$/i);
-      if (match) {
-        parts.zipcode = isProvided(match[1]) ? match[1].trim() : '';
-        activeField = null;
-        return;
-      }
-
-      match = line.match(/^first visit date\s*:\s*(.*?)\s+last visit date\s*:\s*(.*)$/i);
-      if (match) {
-        fields.fv = isProvided(match[1]) ? match[1].trim() : '';
-        fields.lv = isProvided(match[2]) ? match[2].trim() : '';
-        activeField = null;
-        return;
-      }
-
-      match = line.match(/^first visit date\s*:\s*(.*)$/i);
-      if (match) {
-        fields.fv = isProvided(match[1]) ? match[1].trim() : '';
-        activeField = null;
-        return;
-      }
-
-      match = line.match(/^last visit date\s*:\s*(.*)$/i);
-      if (match) {
-        fields.lv = isProvided(match[1]) ? match[1].trim() : '';
-        activeField = null;
-        return;
-      }
-
-      match = line.match(/^next visit date\s*:\s*(.*)$/i);
-      if (match) {
-        fields.nv = isProvided(match[1]) ? match[1].trim() : '';
-        activeField = null;
-        return;
-      }
-
-      if (/^notes\s*:/i.test(line)) {
-        activeField = null;
-        return;
-      }
-
-      if (activeField === 'phone') {
-        addPart('phone', line, '');
-      } else if (activeField && Array.isArray(parts[activeField])) {
-        addPart(activeField, line);
-      }
-    });
-
-    fields.name = parts.name.join(' ').replace(/\s+/g, ' ').trim();
-    fields.doctor = [...parts.doctorFirst, ...parts.doctorLast].join(' ').replace(/\s+/g, ' ').trim();
-    fields.phone = parts.phone.join('').replace(/\s+/g, ' ').trim();
-
-    const cityState = [parts.city, parts.state].filter(Boolean).join(', ');
-    const locality = [cityState, parts.zipcode].filter(Boolean).join(' ');
-    fields.streetAddress = parts.address.join(' ').replace(/\s+/g, ' ').trim();
-    fields.city = parts.city;
-    fields.state = parts.state;
-    fields.zipcode = parts.zipcode;
-    fields.address = [fields.streetAddress, locality].filter(Boolean).join(', ').replace(/\s+/g, ' ').trim();
-
-    return { fields, notes };
-  },
-
-  extractFields(lines) {
-    const fields = {};
-    const notes = [];
-    let pendingLabel = null;
-    let section = null;
-
-    lines.forEach((line) => {
-      if (!line) {
-        return;
-      }
-
-      const trimmed = line.replace(/^[-•*]\s*/, '').trim();
-
-      const cleaned = trimmed
-        .replace(/\*\*/g, '')
-        .replace(/^[\s\-*\u2022\u25aa\u25e6]+/, '')
-        .trim();
-
-      if (/^name\s*\/\s*address\s*\/\s*phone\s*\/\s*fax:?$/i.test(cleaned)) {
-        section = 'contact';
-        pendingLabel = null;
-        return;
-      }
-      if (/^doctors?:?$/i.test(cleaned)) {
-        section = 'doctors';
-        pendingLabel = null;
-        return;
-      }
-      if (/^treatment range:?$/i.test(cleaned)) {
-        section = 'treatment';
-        pendingLabel = null;
-        return;
-      }
-      if (/^cs treatment log:?$/i.test(cleaned)) {
-        section = 'treatment-log';
-        pendingLabel = null;
-        return;
-      }
-      if (/^notes:?$/i.test(cleaned)) {
-        section = 'notes';
-        pendingLabel = null;
-        return;
-      }
-
-      if (/^\(.*remain empty.*\)$/i.test(cleaned)) {
-        return;
-      }
-
-      const treatmentMatch = cleaned.match(/^(fv|first visit|lv|last visit|nv|next visit)\b\s*:?\s*(.*)$/i);
-      if (treatmentMatch) {
-        const treatmentKeys = {
-          fv: 'fv',
-          'first visit': 'fv',
-          lv: 'lv',
-          'last visit': 'lv',
-          nv: 'nv',
-          'next visit': 'nv'
-        };
-        fields[treatmentKeys[treatmentMatch[1].toLowerCase()]] = treatmentMatch[2].trim();
-        pendingLabel = null;
-        return;
-      }
-
-      if (section === 'treatment-log' || section === 'notes') {
-        return;
-      }
-
-      if (pendingLabel) {
-        fields[pendingLabel] = cleaned;
-        pendingLabel = null;
-        return;
-      }
-
-      if (section === 'doctors' && !parser.getLineLabel(cleaned)) {
-        fields.doctor = fields.doctor ? `${fields.doctor}\n${cleaned}` : cleaned;
-        return;
-      }
-
-      if (section === 'contact' && !parser.getLineLabel(cleaned)) {
-        const nextContactField = ['name', 'address', 'phone', 'fax'].find((key) => !fields[key]);
-        if (nextContactField) {
-          fields[nextContactField] = cleaned;
-          return;
-        }
-      }
-      const labelOnlyMatch = cleaned.match(/^([A-Za-z ]+?)\s*[:\-\u2013\u2014]\s*$/);
-      if (labelOnlyMatch) {
-        let key = parser.normalizeLabel(labelOnlyMatch[1]);
-        if (['provider name', 'provider'].includes(labelOnlyMatch[1].trim().toLowerCase()) && fields.name) {
-          key = 'doctor';
-        }
-        if (key) {
-          pendingLabel = key;
-          return;
-        }
-      }
-
-      const directMatch = cleaned.match(/^([A-Za-z .,'/&()]+?)\s*[:\-\u2013\u2014]\s*(.+)$/);
-      if (directMatch) {
-        let key = parser.normalizeLabel(directMatch[1]);
-        if (['provider name', 'provider'].includes(directMatch[1].trim().toLowerCase()) && fields.name) {
-          key = 'doctor';
-        }
-
-        if (key) {
-          fields[key] = directMatch[2].trim();
-          pendingLabel = null;
-        } else {
-          notes.push(cleaned);
-          pendingLabel = null;
-        }
-        return;
-      }
-
-      const inlineMatch = cleaned.match(/^(clinic name|clinic|provider name|provider|practice name|practice|facility name|facility|doctor name|doctors?|physician name|physician|street address|address|location|phone number|phone|telephone|tel|fax number|fax|specialty|name)\b\s*(.*)$/i);
-      if (inlineMatch) {
-        let key = parser.normalizeLabel(inlineMatch[1]);
-        if (['provider name', 'provider'].includes(inlineMatch[1].trim().toLowerCase()) && fields.name) {
-          key = 'doctor';
-        }
-        if (key) {
-          const value = inlineMatch[2].replace(/^\s*[:\-\u2013\u2014]\s*/, '').trim();
-          if (value) {
-            fields[key] = value;
-            pendingLabel = null;
-          } else {
-            pendingLabel = key;
-          }
-        }
-        return;
-      }
-
-      notes.push(cleaned);
-    });
-
-    return { fields, notes };
-  }
-};
-
 const providerValidator = {
   validate(provider) {
     const fields = provider.fields || {};
@@ -563,20 +117,29 @@ const providerValidator = {
     if (!addressChecks.city) otherMissing.push('City');
     if (!addressChecks.state) otherMissing.push('State');
     if (!addressChecks.zipcode) otherMissing.push('ZIP code');
-    if (!this.hasValue(fields.fv)) otherMissing.push('First Visit Date');
-    if (!this.hasValue(fields.lv)) otherMissing.push('Last Visit Date');
+    if (!this.hasValue(fields.fv) && !this.hasValue(fields.lv)) otherMissing.push('First or Last Visit Date');
 
     const missing = [...criticalMissing, ...otherMissing];
-    const level = criticalMissing.length ? 'critical' : otherMissing.length ? 'warning' : 'complete';
+    const state = String(fields.state || '').trim().toUpperCase();
+    const outOfState = /^[A-Z]{2}$/.test(state) && state !== 'TX';
+    const level = outOfState
+      ? 'out-of-state'
+      : criticalMissing.length
+        ? 'critical'
+        : otherMissing.length
+          ? 'warning'
+          : 'complete';
     const labels = {
       critical: 'Critical information missing',
       warning: 'Information missing',
-      complete: 'Complete'
+      complete: 'Complete',
+      'out-of-state': 'Out of State'
     };
 
     return {
       level,
       label: labels[level],
+      outOfState,
       missing,
       summary: missing.length ? `Missing: ${missing.join(', ')}` : ''
     };
@@ -662,38 +225,7 @@ const validationSummaryCounters = {
 
 const formatter = {
   formatProviderTab(provider) {
-    const address = formatter.normalizeAddress(provider.fields?.address);
-    const doctorName = provider.fields?.doctor || '';
-    const firstVisit = formatter.normalizeVisitDate(provider.fields?.fv);
-    const lastVisit = formatter.normalizeVisitDate(provider.fields?.lv);
-    const nextVisit = formatter.normalizeVisitDate(provider.fields?.nv);
-
-    const detailsLines = [
-      provider.fields?.name || '',
-      address || '',
-      provider.fields?.phone || '',
-      provider.fields?.fax || ''
-    ].filter(Boolean);
-
-    const sections = [
-      'NAME/ADDRESS/PHONE/FAX:',
-      ...detailsLines,
-      '',
-      'DOCTORS',
-      doctorName || '',
-      '',
-      'TREATMENT RANGE',
-      `FV:${firstVisit ? ` ${firstVisit}` : ''}`,
-      `LV:${lastVisit ? ` ${lastVisit}` : ''}`,
-      `NV:${nextVisit ? ` ${nextVisit}` : ''}`,
-      '',
-      'CS TREATMENT LOG',
-      '',
-      'NOTES',
-      ''
-    ];
-
-    return sections.join('\n');
+    return formatMedTab(provider.canonical || provider);
   },
 
   normalizeAddress(address) {
@@ -741,8 +273,10 @@ const expandableProviderRow = {
     const statusLabels = {
       complete: 'Complete',
       warning: 'Yellow',
-      critical: 'Red'
+      critical: 'Red',
+      'out-of-state': 'Out of State'
     };
+    const displayTitle = validation.outOfState ? `${provider.title} - OUT OF STATE` : provider.title;
     const rowId = `provider-${provider.id}`;
     const detailsId = `${rowId}-details`;
     const titleId = `${rowId}-title`;
@@ -753,10 +287,10 @@ const expandableProviderRow = {
           <button class="provider-toggle" type="button" aria-expanded="false" aria-controls="${detailsId}" data-action="toggle-provider">
             <span class="provider-chevron" aria-hidden="true">&#8250;</span>
             <span class="provider-copied-indicator" role="img" aria-label="Provider copied" title="Copied">&#10003;</span>
-            <span id="${titleId}" class="provider-name" title="${escapeHtml(provider.title)}">${escapeHtml(provider.title)}</span>
+            <span id="${titleId}" class="provider-name" title="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</span>
             <span class="status-badge status-badge-${validation.level}">${statusLabels[validation.level]}</span>
           </button>
-          <button class="ghost-btn row-copy-btn" type="button" data-action="copy" aria-label="${isCopied ? 'Copy Med Tab again' : 'Copy Med Tab'} for ${escapeHtml(provider.title)}">${isCopied ? 'Copied' : 'Copy'}</button>
+          <button class="ghost-btn row-copy-btn" type="button" data-action="copy" aria-label="${isCopied ? 'Copy Med Tab again' : 'Copy Med Tab'} for ${escapeHtml(displayTitle)}">${isCopied ? 'Copied' : 'Copy'}</button>
         </div>
         <div id="${detailsId}" class="provider-details" role="region" aria-labelledby="${titleId}" hidden>
           ${validation.summary ? `<p class="missing-summary">${escapeHtml(validation.summary)}</p>` : ''}
@@ -839,10 +373,36 @@ const uiActions = {
 
     window.setTimeout(() => {
       try {
-        const providers = parser.parseIntakeText(rawText).map((provider) => ({
-          ...provider,
-          formattedText: formatter.formatProviderTab(provider)
-        }));
+        const detectedFormat = detectInputFormat(rawText);
+        const providers = normalizeProviders(rawText, detectedFormat).map((canonical, index) => {
+          const doctor = [canonical.doctorFirst, canonical.doctorLast].filter(Boolean).join(' ');
+          const cityState = [canonical.city, canonical.state].filter(Boolean).join(', ');
+          const locality = [cityState, canonical.zip].filter(Boolean).join(' ');
+          const address = [canonical.address, locality].filter(Boolean).join(', ');
+          const provider = {
+            id: index + 1,
+            title: canonical.clinicName || doctor || `Provider ${index + 1}`,
+            specialty: 'Medical Provider',
+            rawText: canonical.rawSource,
+            notes: canonical.notes ? canonical.notes.split('\n') : [],
+            canonical,
+            fields: {
+              name: canonical.clinicName,
+              doctor,
+              phone: canonical.phone,
+              fax: canonical.fax,
+              address,
+              streetAddress: canonical.address,
+              city: canonical.city,
+              state: canonical.state,
+              zipcode: canonical.zip,
+              fv: canonical.firstVisitDate,
+              lv: canonical.lastVisitDate,
+              nv: canonical.nextVisitDate
+            }
+          };
+          return { ...provider, formattedText: formatMedTab(canonical) };
+        });
 
         uiActions.renderResults(providers);
         uiActions.setStatus(providers.length ? `Generated ${providers.length} provider tab${providers.length > 1 ? 's' : ''}.` : 'No provider tabs were generated.', providers.length ? 'success' : '');
