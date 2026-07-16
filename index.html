@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,11 +16,18 @@
         <span class="app-brand">Med Tabs Generator</span>
         <div class="app-header-actions">
           <button id="copyBlankTemplateBtn" class="blank-template-btn" type="button">Copy Blank Template</button>
-          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
-          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
-          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
-          <span id="themeLabel">Light mode</span>
-          </button>
+          <div class="theme-picker">
+            <button id="themeToggle" class="theme-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="themeMenu">
+              <span aria-hidden="true">🎨</span><span id="themeLabel">Theme</span><span class="theme-menu-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div id="themeMenu" class="theme-menu" role="menu" aria-label="Choose theme" hidden>
+              <button class="theme-option" type="button" role="menuitemradio" aria-checked="false" data-theme-option="light"><span aria-hidden="true">☀️</span><span>Light</span><span class="theme-check" aria-hidden="true">✓</span></button>
+              <button class="theme-option" type="button" role="menuitemradio" aria-checked="false" data-theme-option="dark"><span aria-hidden="true">🌙</span><span>Dark</span><span class="theme-check" aria-hidden="true">✓</span></button>
+              <button class="theme-option" type="button" role="menuitemradio" aria-checked="false" data-theme-option="sepia"><span aria-hidden="true">📜</span><span>Sepia</span><span class="theme-check" aria-hidden="true">✓</span></button>
+              <button class="theme-option" type="button" role="menuitemradio" aria-checked="false" data-theme-option="forest"><span aria-hidden="true">🌲</span><span>Forest</span><span class="theme-check" aria-hidden="true">✓</span></button>
+              <button class="theme-option" type="button" role="menuitemradio" aria-checked="false" data-theme-option="blossom"><span aria-hidden="true">🌸</span><span>Blossom</span><span class="theme-check" aria-hidden="true">✓</span></button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -51,6 +58,7 @@
               <span id="greenCount" class="counter-pill counter-pill-complete" data-counter-status="complete" hidden></span>
               <span id="yellowCount" class="counter-pill counter-pill-warning" data-counter-status="warning" hidden></span>
               <span id="redCount" class="counter-pill counter-pill-critical" data-counter-status="critical" hidden></span>
+              <span id="duplicateCount" class="counter-pill counter-pill-duplicate" data-counter-status="duplicate" hidden></span>
             </div>
             <button id="clearAllBtn" class="clear-btn" type="button" disabled>Clear All</button>
           </div>

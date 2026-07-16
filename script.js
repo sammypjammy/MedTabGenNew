@@ -1,10 +1,11 @@
 const themeController = {
   storageKey: 'med-tabs-theme',
+  themes: ['light', 'dark', 'sepia', 'forest', 'blossom'],
 
   getInitialTheme() {
     try {
       const savedTheme = window.localStorage.getItem(this.storageKey);
-      if (savedTheme === 'light' || savedTheme === 'dark') {
+      if (this.themes.includes(savedTheme)) {
         return savedTheme;
       }
     } catch (error) {
@@ -15,35 +16,97 @@ const themeController = {
   },
 
   apply(theme, persist = false) {
-    const isDark = theme === 'dark';
-    document.documentElement.dataset.theme = theme;
+    const selectedTheme = this.themes.includes(theme) ? theme : 'light';
+    document.documentElement.dataset.theme = selectedTheme;
 
-    const toggle = document.getElementById('themeToggle');
-    const label = document.getElementById('themeLabel');
-    if (toggle) {
-      toggle.setAttribute('aria-pressed', String(isDark));
-      toggle.setAttribute('aria-label', `Switch to ${isDark ? 'light' : 'dark'} mode`);
-    }
-    if (label) {
-      label.textContent = `${isDark ? 'Dark' : 'Light'} mode`;
-    }
+    document.querySelectorAll('[data-theme-option]').forEach((option) => {
+      const isActive = option.dataset.themeOption === selectedTheme;
+      option.setAttribute('aria-checked', String(isActive));
+      option.tabIndex = isActive ? 0 : -1;
+    });
 
     if (persist) {
       try {
-        window.localStorage.setItem(this.storageKey, theme);
+        window.localStorage.setItem(this.storageKey, selectedTheme);
       } catch (error) {
         // Ignore storage failures without interrupting the UI.
       }
     }
   },
 
-  toggle() {
-    const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    this.apply(nextTheme, true);
+  open() {
+    const toggle = document.getElementById('themeToggle');
+    const menu = document.getElementById('themeMenu');
+    if (!toggle || !menu) return;
+
+    menu.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    const activeOption = menu.querySelector('[aria-checked="true"]') || menu.querySelector('.theme-option');
+    activeOption?.focus();
+  },
+
+  close(returnFocus = false) {
+    const toggle = document.getElementById('themeToggle');
+    const menu = document.getElementById('themeMenu');
+    if (!toggle || !menu) return;
+
+    menu.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    if (returnFocus) toggle.focus();
+  },
+
+  bind() {
+    const toggle = document.getElementById('themeToggle');
+    const menu = document.getElementById('themeMenu');
+    if (!toggle || !menu) return;
+
+    const options = [...menu.querySelectorAll('.theme-option')];
+    toggle.addEventListener('click', () => {
+      if (menu.hidden) this.open();
+      else this.close(true);
+    });
+    toggle.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        this.open();
+        if (event.key === 'ArrowUp') options.at(-1)?.focus();
+      }
+    });
+
+    options.forEach((option) => {
+      option.addEventListener('click', () => {
+        this.apply(option.dataset.themeOption, true);
+        this.close(true);
+      });
+    });
+
+    menu.addEventListener('keydown', (event) => {
+      const currentIndex = options.indexOf(document.activeElement);
+      let nextIndex;
+      if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % options.length;
+      if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + options.length) % options.length;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = options.length - 1;
+      if (nextIndex !== undefined) {
+        event.preventDefault();
+        options[nextIndex].focus();
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!menu.hidden && !event.target.closest('.theme-picker')) this.close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !menu.hidden) {
+        event.preventDefault();
+        this.close(true);
+      }
+    });
   }
 };
 
 themeController.apply(themeController.getInitialTheme());
+themeController.bind();
 
 const ui = {
   inputText: document.getElementById('inputText'),
@@ -54,6 +117,7 @@ const ui = {
   greenCount: document.getElementById('greenCount'),
   yellowCount: document.getElementById('yellowCount'),
   redCount: document.getElementById('redCount'),
+  duplicateCount: document.getElementById('duplicateCount'),
   copyBlankTemplateBtn: document.getElementById('copyBlankTemplateBtn'),
   clearAllBtn: document.getElementById('clearAllBtn'),
   toastContainer: document.getElementById('toastContainer'),
@@ -194,6 +258,100 @@ const providerValidator = {
   }
 };
 
+function normalizePhoneForDuplicateCheck(phone) {
+  const value = String(phone ?? '').trim();
+  if (!value || !/^(?:\+1)?[\d\s().-]+$/.test(value)) {
+    return '';
+  }
+
+  const withoutCountryCode = value.replace(/^\+1\s*/, '');
+  const digits = withoutCountryCode.replace(/[\s().-]/g, '');
+  return /^\d{10}$/.test(digits) ? digits : '';
+}
+
+function normalizeAddressForDuplicateCheck(address) {
+  const genericValues = new Set(['not provided', 'unknown', 'n/a', 'na', 'none']);
+  const abbreviationMap = {
+    street: 'st',
+    st: 'st',
+    road: 'rd',
+    rd: 'rd',
+    avenue: 'ave',
+    ave: 'ave',
+    boulevard: 'blvd',
+    blvd: 'blvd',
+    drive: 'dr',
+    dr: 'dr',
+    lane: 'ln',
+    ln: 'ln',
+    highway: 'hwy',
+    hwy: 'hwy',
+    suite: 'ste',
+    ste: 'ste',
+    north: 'n',
+    n: 'n',
+    south: 's',
+    s: 's',
+    east: 'e',
+    e: 'e',
+    west: 'w',
+    w: 'w'
+  };
+  const rawAddress = String(address ?? '');
+  const hasGenericComponent = rawAddress
+    .toLowerCase()
+    .split(',')
+    .some((part) => genericValues.has(part.replace(/\./g, '').trim()));
+  const normalized = rawAddress
+    .toLowerCase()
+    .trim()
+    .replace(/[,.]/g, '')
+    .replace(/\s+/g, ' ');
+
+  if (!normalized || hasGenericComponent || genericValues.has(normalized)) {
+    return '';
+  }
+
+  return normalized
+    .split(' ')
+    .map((part) => abbreviationMap[part] || part)
+    .join(' ');
+}
+
+function findDuplicateGroups(providers) {
+  const groupsByKey = new Map();
+
+  providers.forEach((provider) => {
+    const phone = normalizePhoneForDuplicateCheck(provider?.fields?.phone);
+    const address = normalizeAddressForDuplicateCheck(provider?.fields?.address);
+    if (!phone || !address) {
+      return;
+    }
+
+    const key = `${phone}\u0000${address}`;
+    const group = groupsByKey.get(key) || [];
+    group.push(provider);
+    groupsByKey.set(key, group);
+  });
+
+  return [...groupsByKey.values()].filter((group) => group.length > 1);
+}
+
+function markDuplicateGroups(providers) {
+  providers.forEach((provider) => delete provider.duplicate);
+  findDuplicateGroups(providers).forEach((group, groupIndex) => {
+    const originalProviderId = group[0].id;
+    group.forEach((provider, providerIndex) => {
+      provider.duplicate = {
+        groupId: groupIndex + 1,
+        originalProviderId,
+        isOriginal: providerIndex === 0
+      };
+    });
+  });
+  return providers;
+}
+
 const validationSummaryCounters = {
   summarize(providers) {
     return providers.reduce((summary, provider) => {
@@ -202,8 +360,9 @@ const validationSummaryCounters = {
       if (level === 'complete') summary.complete += 1;
       if (level === 'warning') summary.warning += 1;
       if (level === 'critical') summary.critical += 1;
+      if (provider.duplicate) summary.duplicates += 1;
       return summary;
-    }, { providers: 0, complete: 0, warning: 0, critical: 0 });
+    }, { providers: 0, complete: 0, warning: 0, critical: 0, duplicates: 0 });
   },
 
   update(providers) {
@@ -212,10 +371,12 @@ const validationSummaryCounters = {
     this.setCounter(ui.greenCount, summary.complete, 'Green', true);
     this.setCounter(ui.yellowCount, summary.warning, 'Yellow', true);
     this.setCounter(ui.redCount, summary.critical, 'Red', true);
+    this.setCounter(ui.duplicateCount, summary.duplicates, 'Duplicates', true);
     return summary;
   },
 
   setCounter(element, count, label, hideWhenZero = false) {
+    if (!element) return;
     element.textContent = `${count} ${label}`;
     element.hidden = hideWhenZero && count === 0;
     element.dataset.count = String(count);
@@ -279,6 +440,15 @@ const expandableProviderRow = {
     const secondaryOutOfStateBadge = validation.outOfState && validation.level !== 'out-of-state'
       ? '<span class="status-badge status-badge-out-of-state">Out of State</span>'
       : '';
+    const duplicateBadge = provider.duplicate
+      ? '<span class="status-badge status-badge-duplicate">Duplicate</span>'
+      : '';
+    const duplicateReference = provider.duplicate && !provider.duplicate.isOriginal
+      ? `<span class="duplicate-reference">Duplicate of Provider ${escapeHtml(provider.duplicate.originalProviderId)}</span>`
+      : '';
+    const duplicateDetails = provider.duplicate && !provider.duplicate.isOriginal
+      ? `<div class="duplicate-details"><p>Possible duplicate of Provider ${escapeHtml(provider.duplicate.originalProviderId)}</p><p>Matching fields:</p><ul><li>Phone number</li><li>Address</li></ul></div>`
+      : '';
     const rowId = `provider-${provider.id}`;
     const detailsId = `${rowId}-details`;
     const titleId = `${rowId}-title`;
@@ -292,10 +462,13 @@ const expandableProviderRow = {
             <span id="${titleId}" class="provider-name" title="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</span>
             <span class="status-badge status-badge-${validation.level}">${statusLabels[validation.level]}</span>
             ${secondaryOutOfStateBadge}
+            ${duplicateBadge}
+            ${duplicateReference}
           </button>
           <button class="ghost-btn row-copy-btn" type="button" data-action="copy" aria-label="${isCopied ? 'Copy Med Tab again' : 'Copy Med Tab'} for ${escapeHtml(displayTitle)}">${isCopied ? 'Copied' : 'Copy'}</button>
         </div>
         <div id="${detailsId}" class="provider-details" role="region" aria-labelledby="${titleId}" hidden>
+          ${duplicateDetails}
           ${validation.summary ? `<p class="missing-summary">${escapeHtml(validation.summary)}</p>` : ''}
           <pre class="medtab-output">${escapeHtml(formattedText)}</pre>
         </div>
@@ -407,6 +580,7 @@ const uiActions = {
           return { ...provider, formattedText: formatMedTab(canonical) };
         });
 
+        markDuplicateGroups(providers);
         uiActions.renderResults(providers);
         uiActions.setStatus(providers.length ? `Generated ${providers.length} provider tab${providers.length > 1 ? 's' : ''}.` : 'No provider tabs were generated.', providers.length ? 'success' : '');
         toastNotifications.show(
@@ -443,8 +617,6 @@ ui.copyBlankTemplateBtn.addEventListener('click', async () => {
     toastNotifications.show('Blank template could not be copied', 'error');
   }
 });
-document.getElementById('themeToggle').addEventListener('click', () => themeController.toggle());
-
 ui.inputText.addEventListener('input', () => {
   const hasCards = Boolean(ui.resultsContainer.querySelector('.provider-card'));
   ui.clearAllBtn.disabled = !ui.inputText.value && !hasCards;
