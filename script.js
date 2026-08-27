@@ -113,19 +113,68 @@ const themeController = {
 themeController.apply(themeController.getInitialTheme());
 themeController.bind();
 
+const toolkitNavigationConfig = [
+  {
+    label: 'Packard Toolkit',
+    items: [
+      { label: 'Home', url: null, disabledLabel: 'Coming soon' },
+      { label: 'Med Tabs', url: null, current: true },
+      { label: 'Canned Remarks', url: 'https://cannedremarks.vercel.app/' },
+      { label: 'Welcome Emails', url: 'https://welcome-email-sender.vercel.app/' },
+      { label: 'Fax Sender', url: null, disabledLabel: 'Coming soon' }
+    ]
+  },
+  {
+    label: 'Other',
+    items: [
+      { label: 'Settings', url: null, disabledLabel: 'Coming soon' }
+    ]
+  }
+];
+
 const appNavigation = {
+  render() {
+    const navigation = document.getElementById('toolkitNavigation');
+    if (!navigation) return;
+
+    navigation.innerHTML = toolkitNavigationConfig.map((section) => `
+      <section class="toolkit-nav-section" aria-labelledby="nav-${section.label.toLowerCase().replaceAll(' ', '-')}">
+        <h3 id="nav-${section.label.toLowerCase().replaceAll(' ', '-')}" class="toolkit-nav-label">${section.label}</h3>
+        ${section.items.map((item) => {
+          if (item.current) {
+            return `<span class="toolkit-nav-item active" aria-current="page"><span>${item.label}</span><span class="toolkit-nav-status">Current</span></span>`;
+          }
+          if (!item.url) {
+            return `<span class="toolkit-nav-item disabled" aria-disabled="true"><span>${item.label}</span><span class="toolkit-nav-status">${item.disabledLabel}</span></span>`;
+          }
+          return `<a class="toolkit-nav-item" href="${item.url}"><span>${item.label}</span></a>`;
+        }).join('')}
+      </section>
+    `).join('');
+  },
+
   open() {
     const toggle = document.getElementById('appMenuToggle');
     const menu = document.getElementById('appMenu');
+    const backdrop = document.getElementById('appMenuBackdrop');
+    if (!toggle || !menu || !backdrop) return;
+
     menu.hidden = false;
+    backdrop.hidden = false;
+    document.body.classList.add('menu-open');
     toggle.setAttribute('aria-expanded', 'true');
-    menu.querySelector('a')?.focus();
+    document.getElementById('appMenuClose')?.focus();
   },
 
   close(returnFocus = false) {
     const toggle = document.getElementById('appMenuToggle');
     const menu = document.getElementById('appMenu');
+    const backdrop = document.getElementById('appMenuBackdrop');
+    if (!toggle || !menu || !backdrop) return;
+
     menu.hidden = true;
+    backdrop.hidden = true;
+    document.body.classList.remove('menu-open');
     toggle.setAttribute('aria-expanded', 'false');
     if (returnFocus) toggle.focus();
   },
@@ -133,7 +182,9 @@ const appNavigation = {
   bind() {
     const toggle = document.getElementById('appMenuToggle');
     const menu = document.getElementById('appMenu');
-    const links = [...menu.querySelectorAll('a')];
+    const closeButton = document.getElementById('appMenuClose');
+    const backdrop = document.getElementById('appMenuBackdrop');
+    if (!toggle || !menu || !closeButton || !backdrop) return;
 
     toggle.addEventListener('click', () => {
       if (menu.hidden) {
@@ -150,16 +201,30 @@ const appNavigation = {
         this.open();
       }
     });
+    closeButton.addEventListener('click', () => this.close(true));
+    backdrop.addEventListener('click', () => this.close(true));
     menu.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab') {
+        const focusable = [...menu.querySelectorAll('button, a[href]')];
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+
+      const links = [...menu.querySelectorAll('a[href]')];
       const currentIndex = links.indexOf(document.activeElement);
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (links.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
         event.preventDefault();
         const direction = event.key === 'ArrowDown' ? 1 : -1;
-        links[(currentIndex + direction + links.length) % links.length]?.focus();
+        const startIndex = currentIndex < 0 ? (direction > 0 ? -1 : 0) : currentIndex;
+        links[(startIndex + direction + links.length) % links.length]?.focus();
       }
-    });
-    document.addEventListener('click', (event) => {
-      if (!menu.hidden && !event.target.closest('.app-navigation')) this.close();
     });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && !menu.hidden) {
@@ -170,6 +235,7 @@ const appNavigation = {
   }
 };
 
+appNavigation.render();
 appNavigation.bind();
 
 const ui = {
@@ -577,8 +643,13 @@ const uiActions = {
       const isReady = emptyMode === 'ready';
       ui.resultsContainer.innerHTML = `
         <div class="empty-state">
-          <h3>${isReady ? 'Ready to generate' : 'No providers found'}</h3>
-          <p>${isReady ? 'Paste intake text from one or more providers and generate polished output cards.' : 'Paste more detailed intake text and try again.'}</p>
+          <div class="empty-state-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 12h5M10 16h5"/></svg>
+          </div>
+          <div>
+            <h3>${isReady ? 'Ready to generate' : 'No providers found'}</h3>
+            <p>${isReady ? 'Your formatted provider tabs will appear here.' : 'Paste more detailed intake text and try again.'}</p>
+          </div>
         </div>
       `;
       return;
