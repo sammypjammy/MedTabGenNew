@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Med Tabs Test Suite</title>
+    <link rel="stylesheet" href="../assets/css/styles.css" />
+    <style>
+      body { margin: 2rem; }
+      .test-report { max-width: 70rem; margin: 0 auto; }
+      .test-report section { margin-block: 2rem; }
+      .test-report .pass { color: #08783e; }
+      .test-report .fail { color: #b42318; }
+      .test-fixture { position: fixed; inset: auto auto 200vh 200vw; }
+    </style>
+    <script>localStorage.removeItem('med-tabs-theme');</script>
+    <script src="../assets/js/med-tab-parser.js"></script>
+    <script src="fixtures/real-intake-samples.js"></script>
+    <script src="parser.test.js"></script>
+    <script src="../assets/js/app.js" defer></script>
+    <script src="ui.test.js" defer></script>
+  </head>
+  <body>
+    <main class="test-report">
+      <h1>Med Tabs Test Suite</h1>
+      <section>
+        <h2>Parser</h2>
+        <p id="parserSummary">Running…</p>
+        <ol id="parserResults"></ol>
+      </section>
+      <section>
+        <h2>User interface</h2>
+        <p id="uiSummary">Running…</p>
+        <ol id="uiResults"></ol>
+      </section>
+    </main>
+
+    <div class="test-fixture" aria-hidden="true">
+      <div class="theme-picker">
+        <button id="themeToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="themeMenu"><span id="themeLabel">Theme</span></button>
+        <div id="themeMenu" role="menu" hidden>
+          <button class="theme-option" type="button" role="menuitemradio" data-theme-option="light">Light</button>
+          <button class="theme-option" type="button" role="menuitemradio" data-theme-option="dark">Dark</button>
+          <button class="theme-option" type="button" role="menuitemradio" data-theme-option="sepia">Sepia</button>
+          <button class="theme-option" type="button" role="menuitemradio" data-theme-option="forest">Forest</button>
+          <button class="theme-option" type="button" role="menuitemradio" data-theme-option="blossom">Blossom</button>
+        </div>
+      </div>
+
+      <button id="appMenuToggle" type="button" aria-expanded="false" aria-controls="appMenu">Menu</button>
+      <div id="appMenuBackdrop" hidden></div>
+      <aside id="appMenu" hidden>
+        <button id="appMenuClose" type="button">Close</button>
+        <nav id="toolkitNavigation"></nav>
+      </aside>
+
+      <textarea id="inputText"></textarea>
+      <button id="generateBtn" type="button">Generate</button>
+      <div id="statusMessage"></div>
+      <div class="output-panel"><div id="resultsContainer"></div></div>
+      <span id="resultCount"></span>
+      <span id="greenCount"></span>
+      <span id="yellowCount"></span>
+      <span id="redCount"></span>
+      <span id="duplicateCount" hidden></span>
+      <button id="copyBlankTemplateBtn" type="button">Copy template</button>
+      <button id="clearAllBtn" type="button">Clear</button>
+      <div id="toastContainer"></div>
+    </div>
+  </body>
+</html>

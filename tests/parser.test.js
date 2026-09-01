@@ -2,7 +2,7 @@
   'use strict';
 
   const api = typeof module !== 'undefined' && module.exports
-    ? require('../med-tab-parser.js')
+    ? require('../assets/js/med-tab-parser.js')
     : scope;
   const realSamples = typeof module !== 'undefined' && module.exports
     ? require('./fixtures/real-intake-samples.js')
